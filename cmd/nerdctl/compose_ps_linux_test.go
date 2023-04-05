@@ -27,7 +27,7 @@ import (
 
 func TestComposePsJSON(t *testing.T) {
 	// `--format` is only supported in compose v2.
-	// Currently CI is using compose v1.
+	// Currently, CI is using compose v1.
 	testutil.DockerIncompatible(t)
 
 	base := testutil.NewBase(t)
@@ -95,6 +95,9 @@ volumes:
 	// check all services are up (can be marshalled and unmarshalled)
 	base.ComposeCmd("-f", comp.YAMLFullPath(), "ps", "--format", "json").
 		AssertOutWithFunc(assertHandler("all", 2, `"Service":"wordpress"`, `"Service":"db"`))
+	// check Image field
+	base.ComposeCmd("-f", comp.YAMLFullPath(), "ps", "--format", "json").
+		AssertOutWithFunc(assertHandler("all", 2, fmt.Sprintf(`"Image":"%s"`, testutil.WordpressImage), fmt.Sprintf(`"Image":"%s"`, testutil.MariaDBImage)))
 	// check wordpress is running
 	base.ComposeCmd("-f", comp.YAMLFullPath(), "ps", "--format", "json", "wordpress").
 		AssertOutWithFunc(assertHandler("wordpress", 1, `"Service":"wordpress"`, `"State":"running"`, `"TargetPort":80`, `"PublishedPort":8080`))
