@@ -27,6 +27,7 @@ import (
 	"github.com/containerd/containerd/snapshots"
 	"github.com/containerd/nerdctl/pkg/clientutil"
 	"github.com/containerd/nerdctl/pkg/cmd/compose"
+	"github.com/containerd/nerdctl/pkg/formatter"
 	"github.com/containerd/nerdctl/pkg/imgutil"
 	"github.com/containerd/nerdctl/pkg/labels"
 	"github.com/containerd/nerdctl/pkg/strutil"
@@ -42,6 +43,7 @@ func newComposeImagesCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	composeImagesCommand.Flags().String("format", "", "Format the output. Supported values: [json]")
 	composeImagesCommand.Flags().BoolP("quiet", "q", false, "Only show numeric image IDs")
 
 	return composeImagesCommand
@@ -57,6 +59,14 @@ func composeImagesAction(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	format, err := cmd.Flags().GetString("format")
+	if err != nil {
+		return err
+	}
+	if format != "json" && format != "" {
+		return fmt.Errorf("unsupported format %s, supported formats are: [json]", format)
+	}
+
 	client, ctx, cancel, err := clientutil.NewClient(cmd.Context(), globalOptions.Namespace, globalOptions.Address)
 	if err != nil {
 		return err
@@ -88,7 +98,7 @@ func composeImagesAction(cmd *cobra.Command, args []string) error {
 
 	sn := client.SnapshotService(globalOptions.Snapshotter)
 
-	return printComposeImages(ctx, cmd, containers, sn)
+	return printComposeImages(ctx, cmd, containers, sn, format)
 }
 
 func printComposeImageIDs(ctx context.Context, containers []containerd.Container) error {
@@ -112,7 +122,7 @@ func printComposeImageIDs(ctx context.Context, containers []containerd.Container
 	return nil
 }
 
-func printComposeImages(ctx context.Context, cmd *cobra.Command, containers []containerd.Container, sn snapshots.Snapshotter) error {
+func printComposeImages(ctx context.Context, cmd *cobra.Command, containers []containerd.Container, sn snapshots.Snapshotter, format string) error {
 	type composeImagePrintable struct {
 		ContainerName string
 		Repository    string
@@ -151,7 +161,9 @@ func printComposeImages(ctx context.Context, cmd *cobra.Command, containers []co
 			if tag == "" {
 				tag = "<none>"
 			}
-			imageID = strings.Split(imageID, ":")[1][:12]
+			if format != "json" {
+				imageID = strings.Split(imageID, ":")[1][:12]
+			}
 
 			// no race condition since each goroutine accesses different `i`
 			imagePrintables[i] = composeImagePrintable{
@@ -167,6 +179,15 @@ func printComposeImages(ctx context.Context, cmd *cobra.Command, containers []co
 	}
 
 	if err := eg.Wait(); err != nil {
+		return err
+	}
+
+	if format == "json" {
+		outJSON, err := formatter.ToJSON(imagePrintables, "", "")
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprint(cmd.OutOrStdout(), outJSON)
 		return err
 	}
 
