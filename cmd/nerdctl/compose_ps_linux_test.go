@@ -92,12 +92,10 @@ volumes:
 
 	// check other formats are not supported
 	base.ComposeCmd("-f", comp.YAMLFullPath(), "ps", "--format", "yaml").AssertFail()
-	// check all services are up (can be marshalled and unmarshalled)
+	// check all services are up (can be marshalled and unmarshalled) and check Image field exists
 	base.ComposeCmd("-f", comp.YAMLFullPath(), "ps", "--format", "json").
-		AssertOutWithFunc(assertHandler("all", 2, `"Service":"wordpress"`, `"Service":"db"`))
-	// check Image field
-	base.ComposeCmd("-f", comp.YAMLFullPath(), "ps", "--format", "json").
-		AssertOutWithFunc(assertHandler("all", 2, fmt.Sprintf(`"Image":"%s"`, testutil.WordpressImage), fmt.Sprintf(`"Image":"%s"`, testutil.MariaDBImage)))
+		AssertOutWithFunc(assertHandler("all", 2, `"Service":"wordpress"`, `"Service":"db"`,
+			fmt.Sprintf(`"Image":"%s"`, testutil.WordpressImage), fmt.Sprintf(`"Image":"%s"`, testutil.MariaDBImage)))
 	// check wordpress is running
 	base.ComposeCmd("-f", comp.YAMLFullPath(), "ps", "--format", "json", "wordpress").
 		AssertOutWithFunc(assertHandler("wordpress", 1, `"Service":"wordpress"`, `"State":"running"`, `"TargetPort":80`, `"PublishedPort":8080`))
